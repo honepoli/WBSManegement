@@ -1,7 +1,114 @@
-const { useEffect } = React;
+const { useEffect, useState, useRef } = React;
 
-function App() {
-  const formRef = React.useRef(null);
+function Start() {
+  return (
+    <div>
+      <h1>Welcome to WBS Management</h1>
+      <p><a href="#signup">Sign Up</a> | <a href="#signin">Sign In</a></p>
+    </div>
+  );
+}
+
+function SignUp() {
+  const formRef = useRef(null);
+
+  const onSubmit = async e => {
+    e.preventDefault();
+    const f = formRef.current;
+    const res = await fetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: f.username.value,
+        password: f.password.value
+      })
+    });
+    if (res.ok) {
+      alert('Registration successful. Please sign in.');
+      window.location.hash = '#signin';
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Registration failed');
+    }
+  };
+
+  return (
+    <div>
+      <h1>Sign Up</h1>
+      <form ref={formRef} onSubmit={onSubmit}>
+        <input name="username" placeholder="Username" required />
+        <input name="password" type="password" placeholder="Password" required />
+        <button type="submit">Register</button>
+      </form>
+    </div>
+  );
+}
+
+function SignIn() {
+  const formRef = useRef(null);
+
+  useEffect(() => {
+    if (localStorage.getItem('accessToken')) {
+      window.location.hash = '#app';
+    }
+  }, []);
+
+  const onSubmit = async e => {
+    e.preventDefault();
+    const f = formRef.current;
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: f.username.value,
+        password: f.password.value
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      window.location.hash = '#app';
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Login failed');
+    }
+  };
+
+  return (
+    <div>
+      <h1>Sign In</h1>
+      <form ref={formRef} onSubmit={onSubmit}>
+        <input name="username" placeholder="Username" required />
+        <input name="password" type="password" placeholder="Password" required />
+        <button type="submit">Login</button>
+      </form>
+    </div>
+  );
+}
+
+function WBSPage() {
+  const formRef = useRef(null);
+  useEffect(() => {
+    if (!localStorage.getItem('accessToken')) {
+      window.location.hash = '#';
+    }
+  }, []);
+
+  const signOut = async () => {
+    const token = localStorage.getItem('refreshToken');
+    if (token) {
+      await fetch('/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+    }
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    window.location.hash = '#';
+  };
+
 
   const loadTasks = async () => {
     const res = await fetch('/tasks');
@@ -75,6 +182,7 @@ function App() {
   return (
     <div>
       <h1>WBS Management</h1>
+      <p><button onClick={signOut}>Sign Out</button></p>
       <form ref={formRef} onSubmit={onSubmit} id="task-form">
         <input name="task_name" placeholder="Task Name" required />
         <input name="major_category" placeholder="Major Category" required />
@@ -96,4 +204,19 @@ function App() {
   );
 }
 
-ReactDOM.render(<App />, document.getElementById('root'));
+function Router() {
+  const [route, setRoute] = useState(window.location.hash || '#');
+
+  useEffect(() => {
+    const onHash = () => setRoute(window.location.hash || '#');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  if (route === '#signup') return <SignUp />;
+  if (route === '#signin') return <SignIn />;
+  if (route === '#app') return <WBSPage />;
+  return <Start />;
+}
+
+ReactDOM.render(<Router />, document.getElementById('root'));
