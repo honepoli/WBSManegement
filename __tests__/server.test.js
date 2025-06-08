@@ -15,6 +15,34 @@ jest.mock('better-sqlite3', () => {
   return Database;
 });
 
+describe('Link API', () => {
+  test('GET /links returns links', async () => {
+    Database.mockAll.mockReturnValue([{ link_id: 1 }]);
+    const res = await request(app).get('/links');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual([{ link_id: 1 }]);
+  });
+
+  test('POST /links creates link with auth', async () => {
+    Database.mockGet.mockReturnValue({ link_id: 1 });
+    const res = await request(app)
+      .post('/links')
+      .set('Authorization', 'Bearer token')
+      .send({ source_task_id: 1, target_task_id: 2, type: 'FS' });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.link_id).toBe(1);
+  });
+
+  test('DELETE /links/:id deletes link', async () => {
+    Database.mockRun.mockReturnValue({ changes: 1 });
+    const res = await request(app)
+      .delete('/links/1')
+      .set('Authorization', 'Bearer token');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.deleted).toBe(1);
+  });
+});
+
 jest.mock('jsonwebtoken', () => ({
   verify: jest.fn((token, secret, cb) => cb(null, { user_id: 1, username: 'test' }))
 }));
