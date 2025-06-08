@@ -5,13 +5,30 @@ async function loadTasks() {
   tbody.innerHTML = '';
   tasks.forEach(t => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${t.task_id}</td>
-      <td>${t.task_name}</td>
-      <td>${t.assignee}</td>
-      <td>${t.status}</td>
-      <td><button data-id="${t.task_id}">Delete</button></td>
-    `;
+
+    const idCell = document.createElement('td');
+    idCell.textContent = t.task_id;
+    tr.appendChild(idCell);
+
+    const nameCell = document.createElement('td');
+    nameCell.textContent = t.task_name;
+    tr.appendChild(nameCell);
+
+    const assigneeCell = document.createElement('td');
+    assigneeCell.textContent = t.assignee;
+    tr.appendChild(assigneeCell);
+
+    const statusCell = document.createElement('td');
+    statusCell.textContent = t.status;
+    tr.appendChild(statusCell);
+
+    const actionCell = document.createElement('td');
+    const delButton = document.createElement('button');
+    delButton.textContent = 'Delete';
+    delButton.dataset.id = t.task_id;
+    actionCell.appendChild(delButton);
+    tr.appendChild(actionCell);
+
     tbody.appendChild(tr);
   });
 }
