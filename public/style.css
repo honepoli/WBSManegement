@@ -17,3 +17,9 @@ th, td {
   border: 1px solid #ccc;
   padding: 5px 8px;
 }
+
+#gantt {
+  width: 100%;
+  height: 400px;
+  margin-top: 20px;
+}

@@ -6,6 +6,9 @@ const argon2 = require('argon2');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
+// simple in-memory storage for SSE clients
+const clients = [];
+
 const ALLOWED_STATUSES = ['未着手', '進行中', '遅延', '完了', '保留'];
 
 function validateTaskFields(task) {
@@ -30,6 +33,26 @@ const pool = new Pool({
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// SSE endpoint for task change notifications
+app.get('/events', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+  res.flushHeaders();
+  clients.push(res);
+  req.on('close', () => {
+    const idx = clients.indexOf(res);
+    if (idx !== -1) clients.splice(idx, 1);
+  });
+});
+
+function broadcast(event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  clients.forEach(c => c.write(payload));
+}
 
 // Initialize database
 const initSql = `
@@ -170,6 +193,7 @@ app.post('/tasks', authenticateToken, async (req, res) => {
   try {
     const { rows } = await pool.query(sql, params);
     res.status(201).json(rows[0]);
+    broadcast('taskCreated', rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -197,6 +221,7 @@ app.patch('/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const { rows } = await pool.query(sql, params);
     res.json(rows[0]);
+    broadcast('taskUpdated', rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -208,6 +233,7 @@ app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM tasks WHERE task_id = $1', [id]);
     res.json({ deleted: result.rowCount });
+    broadcast('taskDeleted', { task_id: Number(id) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
