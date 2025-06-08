@@ -4,37 +4,15 @@
   <meta charset="UTF-8">
   <title>WBS Management</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css">
 </head>
 <body>
-  <h1>WBS Management</h1>
-  <form id="task-form">
-    <input type="text" id="task_name" placeholder="Task Name" required>
-    <input type="text" id="major_category" placeholder="Major Category" required>
-    <input type="text" id="sub_category" placeholder="Sub Category" required>
-    <input type="text" id="assignee" placeholder="Assignee" required>
-    <input type="date" id="planned_start_date" required>
-    <input type="date" id="planned_end_date" required>
-    <select id="status">
-      <option value="未着手">未着手</option>
-      <option value="進行中">進行中</option>
-      <option value="遅延">遅延</option>
-      <option value="完了">完了</option>
-      <option value="保留">保留</option>
-    </select>
-    <button type="submit">Add Task</button>
-  </form>
-  <table id="tasks">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Assignee</th>
-        <th>Status</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-<script src="script.js"></script>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+  <script type="text/babel" src="app.jsx"></script>
 </body>
 </html>
