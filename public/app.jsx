@@ -48,7 +48,11 @@ function App() {
       status: f.status.value
     };
     const token = localStorage.getItem('accessToken');
-    await fetch('/tasks', {
+    if (!token) {
+      alert('Please log in first');
+      return;
+    }
+    const res = await fetch('/tasks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,6 +60,15 @@ function App() {
       },
       body: JSON.stringify(payload)
     });
+    if (!res.ok) {
+      try {
+        const err = await res.json();
+        alert(err.error || 'Failed to add task');
+      } catch (e) {
+        alert('Failed to add task');
+      }
+      return;
+    }
     f.reset();
   };
 
