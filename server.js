@@ -1,57 +1,72 @@
 const express = require('express');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 
 const app = express();
-const dbFile = path.join(__dirname, 'wbs.db');
-const db = new sqlite3.Database(dbFile);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgres://localhost/wbs'
+});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Initialize database
-const initSql = `CREATE TABLE IF NOT EXISTS tasks (
-  task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+const initSql = `
+CREATE TABLE IF NOT EXISTS tasks (
+  task_id SERIAL PRIMARY KEY,
   task_name TEXT NOT NULL,
   major_category TEXT NOT NULL,
   sub_category TEXT NOT NULL,
   assignee TEXT NOT NULL,
-  planned_start_date TEXT NOT NULL,
-  planned_end_date TEXT NOT NULL,
-  actual_start_date TEXT,
-  actual_end_date TEXT,
-  progress_percent INTEGER DEFAULT 0,
+  planned_start_date DATE NOT NULL,
+  planned_end_date DATE NOT NULL,
+  actual_start_date DATE,
+  actual_end_date DATE,
+  progress_percent INTEGER DEFAULT 0 CHECK (progress_percent >= 0 AND progress_percent <= 100),
   status TEXT NOT NULL
-);`;
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee);`;
 
-db.serialize(() => {
-  db.run(initSql);
-});
+pool.query(initSql).catch(err => console.error('DB init error', err));
 
 // Get all tasks
-app.get('/tasks', (req, res) => {
-  db.all('SELECT * FROM tasks ORDER BY task_id', (err, rows) => {
-    if (err) return res.status(500).json({error: err.message});
+app.get('/tasks', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM tasks ORDER BY task_id');
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Create task
-app.post('/tasks', (req, res) => {
+app.post('/tasks', async (req, res) => {
   const t = req.body;
-  const sql = `INSERT INTO tasks (task_name, major_category, sub_category, assignee, planned_start_date, planned_end_date, actual_start_date, actual_end_date, progress_percent, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  const params = [t.task_name, t.major_category, t.sub_category, t.assignee, t.planned_start_date, t.planned_end_date, t.actual_start_date || null, t.actual_end_date || null, t.progress_percent || 0, t.status];
-  db.run(sql, params, function(err){
-    if (err) return res.status(500).json({error: err.message});
-    db.get('SELECT * FROM tasks WHERE task_id = ?', [this.lastID], (err, row) => {
-      if (err) return res.status(500).json({error: err.message});
-      res.status(201).json(row);
-    });
-  });
+  const sql = `INSERT INTO tasks (task_name, major_category, sub_category, assignee, planned_start_date, planned_end_date, actual_start_date, actual_end_date, progress_percent, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`;
+  const params = [
+    t.task_name,
+    t.major_category,
+    t.sub_category,
+    t.assignee,
+    t.planned_start_date,
+    t.planned_end_date,
+    t.actual_start_date || null,
+    t.actual_end_date || null,
+    t.progress_percent || 0,
+    t.status
+  ];
+  try {
+    const { rows } = await pool.query(sql, params);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update task
-app.patch('/tasks/:id', (req, res) => {
+app.patch('/tasks/:id', async (req, res) => {
   const id = req.params.id;
   const fields = ['task_name','major_category','sub_category','assignee','planned_start_date','planned_end_date','actual_start_date','actual_end_date','progress_percent','status'];
   const updates = [];
@@ -59,29 +74,30 @@ app.patch('/tasks/:id', (req, res) => {
 
   fields.forEach(f => {
     if (req.body[f] !== undefined) {
-      updates.push(`${f} = ?`);
       params.push(req.body[f]);
+      updates.push(`${f} = $${params.length}`);
     }
   });
   if (updates.length === 0) return res.status(400).json({error: 'No fields to update'});
   params.push(id);
-  const sql = `UPDATE tasks SET ${updates.join(', ')} WHERE task_id = ?`;
-  db.run(sql, params, function(err){
-    if (err) return res.status(500).json({error: err.message});
-    db.get('SELECT * FROM tasks WHERE task_id = ?', [id], (err, row) => {
-      if (err) return res.status(500).json({error: err.message});
-      res.json(row);
-    });
-  });
+  const sql = `UPDATE tasks SET ${updates.join(', ')} WHERE task_id = $${params.length} RETURNING *`;
+  try {
+    const { rows } = await pool.query(sql, params);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Delete task
-app.delete('/tasks/:id', (req, res) => {
+app.delete('/tasks/:id', async (req, res) => {
   const id = req.params.id;
-  db.run('DELETE FROM tasks WHERE task_id = ?', [id], function(err){
-    if (err) return res.status(500).json({error: err.message});
-    res.json({deleted: this.changes});
-  });
+  try {
+    const result = await pool.query('DELETE FROM tasks WHERE task_id = $1', [id]);
+    res.json({ deleted: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
