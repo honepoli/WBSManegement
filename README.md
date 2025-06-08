@@ -10,14 +10,20 @@ This is a simple WBS management application built with Node.js, PostgreSQL and v
 npm install
 ```
 
-2. Start the server
+2. Make sure PostgreSQL is running and the `wbs` database exists. You can create it with:
+
+```bash
+createdb wbs
+```
+
+3. Start the server
 
 ```bash
 DATABASE_URL=postgres://user:password@localhost:5432/wbs \
 JWT_SECRET=mysecret npm start
 ```
 
-The `DATABASE_URL` environment variable should point to your PostgreSQL instance. `JWT_SECRET` is used to sign authentication tokens.
+The `DATABASE_URL` environment variable must include the username and password matching your local database credentials and point to the `wbs` database. `JWT_SECRET` is used to sign authentication tokens.
 
 The application will run on [http://localhost:3000](http://localhost:3000).
 
