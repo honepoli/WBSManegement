@@ -127,8 +127,8 @@ function WBSPage() {
       assignee: t.assignee,
       planned_start_date: t.planned_start_date,
       planned_end_date: t.planned_end_date,
-      actual_start_date: t.actual_start_date,
-      actual_end_date: t.actual_end_date
+      actual_start_date: t.actual_start_date ? new Date(t.actual_start_date) : null,
+      actual_end_date: t.actual_end_date ? new Date(t.actual_end_date) : null
     }));
     const linkData = links.map(l => ({
       id: l.link_id,
