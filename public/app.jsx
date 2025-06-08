@@ -142,13 +142,25 @@ function WBSPage() {
 
   useEffect(() => {
     gantt.config.xml_date = '%Y-%m-%d';
+
+    gantt.config.drag_move = true;
+    gantt.config.drag_resize = true;
+    gantt.config.details_on_dblclick = true;
+    gantt.config.edit_on_dblclick = true;
+    gantt.config.grid_resize = true;
+
+    gantt.config.lightbox.sections = [
+      { name: 'description', height: 38, map_to: 'text', type: 'textarea', focus: true },
+      { name: 'time', type: 'duration', map_to: 'auto' }
+    ];
+
     gantt.config.columns = [
       { name: 'text', label: 'Task', tree: true, width: '*' },
       { name: 'assignee', label: 'Assignee', align: 'center' },
-      { name: 'planned_start_date', label: 'Planned Start', align: 'center' },
-      { name: 'planned_end_date', label: 'Planned End', align: 'center' },
-      { name: 'actual_start_date', label: 'Actual Start', align: 'center' },
-      { name: 'actual_end_date', label: 'Actual End', align: 'center' }
+      { name: 'planned_start_date', label: 'Planned Start', align: 'center', editor: { type: 'date', map_to: 'start_date' } },
+      { name: 'planned_end_date', label: 'Planned End', align: 'center', editor: { type: 'date', map_to: 'end_date' } },
+      { name: 'actual_start_date', label: 'Actual Start', align: 'center', editor: { type: 'date', map_to: 'actual_start_date' } },
+      { name: 'actual_end_date', label: 'Actual End', align: 'center', editor: { type: 'date', map_to: 'actual_end_date' } }
     ];
     gantt.init('gantt');
     loadTasks();
