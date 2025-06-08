@@ -6,6 +6,23 @@ const argon2 = require('argon2');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
+const ALLOWED_STATUSES = ['未着手', '進行中', '遅延', '完了', '保留'];
+
+function validateTaskFields(task) {
+  if (task.progress_percent !== undefined) {
+    const p = Number(task.progress_percent);
+    if (isNaN(p) || p < 0 || p > 100) {
+      return { error: 'Invalid progress_percent' };
+    }
+  }
+  if (task.status !== undefined) {
+    if (!ALLOWED_STATUSES.includes(task.status)) {
+      return { error: 'Invalid status' };
+    }
+  }
+  return null;
+}
+
 const app = express();
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://localhost/wbs'
@@ -132,6 +149,8 @@ app.get('/tasks', async (req, res) => {
 // Create task
 app.post('/tasks', authenticateToken, async (req, res) => {
   const t = req.body;
+  const validation = validateTaskFields(t);
+  if (validation) return res.status(400).json(validation);
   const sql = `INSERT INTO tasks (task_name, major_category, sub_category, assignee, planned_start_date, planned_end_date, actual_start_date, actual_end_date, progress_percent, status, parent_task_id, sort_order)
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`;
   const params = [
@@ -162,6 +181,9 @@ app.patch('/tasks/:id', authenticateToken, async (req, res) => {
   const fields = ['task_name','major_category','sub_category','assignee','planned_start_date','planned_end_date','actual_start_date','actual_end_date','progress_percent','status','parent_task_id','sort_order'];
   const updates = [];
   const params = [];
+
+  const validation = validateTaskFields(req.body);
+  if (validation) return res.status(400).json(validation);
 
   fields.forEach(f => {
     if (req.body[f] !== undefined) {
