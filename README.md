@@ -1,6 +1,6 @@
 # WBS Management Demo
 
-This is a simple WBS management application built with Node.js, PostgreSQL and vanilla HTML/JS/CSS.
+This is a simple WBS management application built with Node.js, SQLite and vanilla HTML/JS/CSS.
 
 ## Setup
 
@@ -10,20 +10,15 @@ This is a simple WBS management application built with Node.js, PostgreSQL and v
 npm install
 ```
 
-2. Make sure PostgreSQL is running and the `wbs` database exists. You can create it with:
-
-```bash
-createdb wbs
-```
+2. The application uses a local SQLite database file named `wbs.db`. It will be created automatically on first run, so no additional setup is required.
 
 3. Start the server
 
 ```bash
-DATABASE_URL=postgres://user:password@localhost:5432/wbs \
 JWT_SECRET=mysecret npm start
 ```
 
-The `DATABASE_URL` environment variable must include the username and password matching your local database credentials and point to the `wbs` database. `JWT_SECRET` is used to sign authentication tokens.
+`JWT_SECRET` is used to sign authentication tokens.
 
 The application will run on [http://localhost:3000](http://localhost:3000).
 
