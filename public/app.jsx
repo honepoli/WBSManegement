@@ -120,7 +120,11 @@ function WBSPage() {
       end_date: t.planned_end_date,
       progress: (t.progress_percent || 0) / 100,
       parent: t.parent_task_id || 0,
-      assignee: t.assignee
+      assignee: t.assignee,
+      planned_start_date: t.planned_start_date,
+      planned_end_date: t.planned_end_date,
+      actual_start_date: t.actual_start_date,
+      actual_end_date: t.actual_end_date
     }));
     gantt.clearAll();
     gantt.parse({ data });
@@ -130,7 +134,11 @@ function WBSPage() {
     gantt.config.xml_date = '%Y-%m-%d';
     gantt.config.columns = [
       { name: 'text', label: 'Task', tree: true, width: '*' },
-      { name: 'assignee', label: 'Assignee', align: 'center' }
+      { name: 'assignee', label: 'Assignee', align: 'center' },
+      { name: 'planned_start_date', label: 'Planned Start', align: 'center' },
+      { name: 'planned_end_date', label: 'Planned End', align: 'center' },
+      { name: 'actual_start_date', label: 'Actual Start', align: 'center' },
+      { name: 'actual_end_date', label: 'Actual End', align: 'center' }
     ];
     gantt.init('gantt');
     loadTasks();
