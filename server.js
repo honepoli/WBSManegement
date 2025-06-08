@@ -1,6 +1,10 @@
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
+const argon2 = require('argon2');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 const app = express();
 const pool = new Pool({
@@ -28,9 +32,92 @@ CREATE TABLE IF NOT EXISTS tasks (
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE TABLE IF NOT EXISTS users (
+  user_id SERIAL PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER REFERENCES users(user_id),
+  expires TIMESTAMPTZ NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee);`;
 
 pool.query(initSql).catch(err => console.error('DB init error', err));
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+}
+
+app.post('/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' });
+  }
+  try {
+    const hash = await argon2.hash(password, { type: argon2.argon2id });
+    const { rows } = await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1,$2) RETURNING user_id, username',
+      [username, hash]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
+    if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = rows[0];
+    const valid = await argon2.verify(user.password_hash, password);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    const accessToken = jwt.sign({ user_id: user.user_id, username: user.username }, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ user_id: user.user_id }, JWT_SECRET, { expiresIn: '7d' });
+    await pool.query("INSERT INTO refresh_tokens(token, user_id, expires) VALUES ($1,$2,NOW()+INTERVAL '7 days')", [refreshToken, user.user_id]);
+    res.json({ accessToken, refreshToken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/auth/refresh', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token required' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    const { rows } = await pool.query('SELECT * FROM refresh_tokens WHERE token=$1 AND expires>NOW()', [token]);
+    if (rows.length === 0) return res.status(403).json({ error: 'Invalid token' });
+    const { rows: userRows } = await pool.query('SELECT user_id, username FROM users WHERE user_id=$1', [payload.user_id]);
+    if (userRows.length === 0) return res.status(403).json({ error: 'Invalid token' });
+    const accessToken = jwt.sign({ user_id: userRows[0].user_id, username: userRows[0].username }, JWT_SECRET, { expiresIn: '15m' });
+    res.json({ accessToken });
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
+app.post('/auth/logout', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token required' });
+  try {
+    await pool.query('DELETE FROM refresh_tokens WHERE token=$1', [token]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Get all tasks
 app.get('/tasks', async (req, res) => {
@@ -43,7 +130,7 @@ app.get('/tasks', async (req, res) => {
 });
 
 // Create task
-app.post('/tasks', async (req, res) => {
+app.post('/tasks', authenticateToken, async (req, res) => {
   const t = req.body;
   const sql = `INSERT INTO tasks (task_name, major_category, sub_category, assignee, planned_start_date, planned_end_date, actual_start_date, actual_end_date, progress_percent, status, parent_task_id, sort_order)
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`;
@@ -70,7 +157,7 @@ app.post('/tasks', async (req, res) => {
 });
 
 // Update task
-app.patch('/tasks/:id', async (req, res) => {
+app.patch('/tasks/:id', authenticateToken, async (req, res) => {
   const id = req.params.id;
   const fields = ['task_name','major_category','sub_category','assignee','planned_start_date','planned_end_date','actual_start_date','actual_end_date','progress_percent','status','parent_task_id','sort_order'];
   const updates = [];
@@ -94,7 +181,7 @@ app.patch('/tasks/:id', async (req, res) => {
 });
 
 // Delete task
-app.delete('/tasks/:id', async (req, res) => {
+app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   const id = req.params.id;
   try {
     const result = await pool.query('DELETE FROM tasks WHERE task_id = $1', [id]);
