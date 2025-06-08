@@ -47,9 +47,13 @@ function App() {
       planned_end_date: f.planned_end_date.value,
       status: f.status.value
     };
+    const token = localStorage.getItem('accessToken');
     await fetch('/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer dummy' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(payload)
     });
     f.reset();

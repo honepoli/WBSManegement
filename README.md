@@ -37,3 +37,11 @@ Use the following endpoints to manage users and tokens:
 * `POST /auth/logout` – revoke a refresh token.
 
 Include the access token as a Bearer token in the `Authorization` header when modifying tasks.
+
+After registering or logging in, store the returned `accessToken` in the browser using:
+
+```javascript
+localStorage.setItem('accessToken', '<token>');
+```
+
+Once saved, load the UI (open `index.html`) and the application will automatically send the token in the `Authorization` header for task operations.
