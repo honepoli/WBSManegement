@@ -80,6 +80,12 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   user_id INTEGER REFERENCES users(user_id),
   expires DATETIME NOT NULL
 );
+CREATE TABLE IF NOT EXISTS task_links (
+  link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_task_id INTEGER NOT NULL REFERENCES tasks(task_id),
+  target_task_id INTEGER NOT NULL REFERENCES tasks(task_id),
+  type TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee);`;
 
 try {
@@ -233,6 +239,45 @@ app.delete('/tasks/:id', authenticateToken, async (req, res) => {
     const result = db.prepare('DELETE FROM tasks WHERE task_id = ?').run(id);
     res.json({ deleted: result.changes });
     broadcast('taskDeleted', { task_id: Number(id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all links
+app.get('/links', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM task_links').all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create link
+app.post('/links', authenticateToken, (req, res) => {
+  const { source_task_id, target_task_id, type } = req.body;
+  if (!source_task_id || !target_task_id || !type) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  try {
+    const link = db.prepare(
+      'INSERT INTO task_links (source_task_id, target_task_id, type) VALUES (?,?,?) RETURNING *'
+    ).get(source_task_id, target_task_id, type);
+    res.status(201).json(link);
+    broadcast('linkCreated', link);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete link
+app.delete('/links/:id', authenticateToken, (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = db.prepare('DELETE FROM task_links WHERE link_id=?').run(id);
+    res.json({ deleted: result.changes });
+    if (result.changes) broadcast('linkDeleted', { link_id: Number(id) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
