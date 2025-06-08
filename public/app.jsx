@@ -143,6 +143,31 @@ function WBSPage() {
     gantt.init('gantt');
     loadTasks();
 
+    const fmt = gantt.date.date_to_str('%Y-%m-%d');
+    const syncTaskDates = id => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+      const t = gantt.getTask(id);
+      const payload = {
+        planned_start_date: fmt(t.start_date),
+        planned_end_date: fmt(t.end_date),
+        actual_start_date: t.actual_start_date ? fmt(t.actual_start_date) : null,
+        actual_end_date: t.actual_end_date ? fmt(t.actual_end_date) : null
+      };
+      fetch(`/tasks/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+    };
+
+    gantt.attachEvent('onAfterTaskUpdate', syncTaskDates);
+    gantt.attachEvent('onAfterTaskDrag', syncTaskDates);
+    gantt.attachEvent('onAfterTaskResize', syncTaskDates);
+
     const es = new EventSource('/events');
     es.addEventListener('taskCreated', loadTasks);
     es.addEventListener('taskUpdated', loadTasks);
