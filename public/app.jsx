@@ -111,8 +111,12 @@ function WBSPage() {
 
 
   const loadTasks = async () => {
-    const res = await fetch('/tasks');
-    const tasks = await res.json();
+    const [taskRes, linkRes] = await Promise.all([
+      fetch('/tasks'),
+      fetch('/links')
+    ]);
+    const tasks = await taskRes.json();
+    const links = await linkRes.json();
     const data = tasks.map(t => ({
       id: t.task_id,
       text: t.task_name,
@@ -126,8 +130,14 @@ function WBSPage() {
       actual_start_date: t.actual_start_date,
       actual_end_date: t.actual_end_date
     }));
+    const linkData = links.map(l => ({
+      id: l.link_id,
+      source: l.source_task_id,
+      target: l.target_task_id,
+      type: l.type
+    }));
     gantt.clearAll();
-    gantt.parse({ data });
+    gantt.parse({ data, links: linkData });
   };
 
   useEffect(() => {
@@ -168,10 +178,38 @@ function WBSPage() {
     gantt.attachEvent('onAfterTaskDrag', syncTaskDates);
     gantt.attachEvent('onAfterTaskResize', syncTaskDates);
 
+    gantt.attachEvent('onAfterLinkAdd', (id, item) => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+      fetch('/links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          source_task_id: item.source,
+          target_task_id: item.target,
+          type: item.type
+        })
+      });
+    });
+
+    gantt.attachEvent('onAfterLinkDelete', id => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+      fetch(`/links/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    });
+
     const es = new EventSource('/events');
     es.addEventListener('taskCreated', loadTasks);
     es.addEventListener('taskUpdated', loadTasks);
     es.addEventListener('taskDeleted', loadTasks);
+    es.addEventListener('linkCreated', loadTasks);
+    es.addEventListener('linkDeleted', loadTasks);
     return () => es.close();
   }, []);
 
